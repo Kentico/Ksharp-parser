@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 
-namespace KSharp
+namespace KSharpParser.Comparers
 {
     /// <summary>
     /// Base class for custom implementation of <see cref="IComparer"/>.
