@@ -1,3 +1,5 @@
+**🛈 This repository contains Kentico's internal code that is of no use to the general public. Please explore our [other repositories](https://github.com/Kentico).**
+
 # Ksharp-parser
 
 This repository contains new K# parser generated from the grammar trough the Antlr tool for Kentico CMS solution. They were implemented as part of the master thesis at Faculty of Informatics, Masaryk University.
