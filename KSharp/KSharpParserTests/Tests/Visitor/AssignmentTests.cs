@@ -5,7 +5,7 @@ using NUnit.Framework;
 
 namespace KSharpParser.Tests
 {
-    class AssignmentTests 
+    class AssignmentTests
     {
         [TestFixture]
         public class BasicAssignmentTests : KSharpTestBase
@@ -79,12 +79,21 @@ namespace KSharpParser.Tests
             [TestCase("Variable ^=2;")]
             [TestCase("Variable <<= 2;")]
             [TestCase("Variable >>= 2;")]
-            
             public void AdvancedAssignment_NotSuccessful_ThrowsInvalidOperationException(string input)
             {
                 var tree = GetParser(input).begin_expression();
 
                 Assert.Throws<InvalidOperationException>(() => Visitor.GetFirstResult(tree));
+            }
+
+
+            [TestCase("Variable = \"lol\";Variable++;")]
+            [TestCase("Variable = \"lol\";Variable--;")]
+            public void AdvancedAssigment_NumericOperationToString_ThrowsException(string input)
+            {
+                var tree = GetParser(input).begin_expression();
+
+                Assert.Throws<FormatException>(() => Visitor.GetFirstResult(tree));
             }
         }
     }
