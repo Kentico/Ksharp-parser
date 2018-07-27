@@ -4,24 +4,21 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Threading;
+
+using KSharpParser.Comparers;
+using static KSharpParser.KSharpGrammarParser;
+
 using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
 
-using KSharpParser;
-using KSharpParser.Integration;
-
-using static KSharpParser.KSharpGrammarParser;
-
-namespace KSharp
+namespace KSharpParser.Visitors
 {
     /// <summary>
-    /// Implementats <seealso cref="KSharpGrammarBaseVisitor{Result}"/>.
+    /// Provides evaluation of the macro expression. Implements <see cref="KSharpGrammarBaseVisitor{Result}"/>.
     /// </summary>
-    public class KSharpVisitor : KSharpGrammarBaseVisitor<object>
+    internal class KSharpVisitor : KSharpGrammarBaseVisitor<object>
     {
-        #region "Private properties"
-
         private readonly INodeEvaluator evaluator;
 
         private CancellationToken? cancellationToken;
@@ -35,7 +32,7 @@ namespace KSharp
         private bool continueLoop = false;
 
         private bool returnFromLoop = false;
-        
+
         private static readonly Type[] mNumericTypes = new Type[] {
             typeof(int),
             typeof(double),
@@ -54,13 +51,9 @@ namespace KSharp
             typeof(decimal)
         };
 
-        #endregion
-
-
-        #region "Constructors"
 
         /// <summary>
-        /// Creates the visitor.
+        /// Initializes a new instance of the <see cref="KSharpVisitor"/> class.
         /// </summary>
         /// <param name="evaluator">Instance of the evaluator.</param>
         public KSharpVisitor(INodeEvaluator evaluator)
@@ -70,7 +63,7 @@ namespace KSharp
 
 
         /// <summary>
-        /// Creates the visitor for lambda expression body.
+        /// Initializes a new instance of the <see cref="KSharpVisitor"/> class for lambda expression body.
         /// </summary>
         /// <param name="evaluator">Instance of the evaluator.</param>
         /// <param name="globalVariables">Variables from the visitor above.</param>
@@ -87,13 +80,9 @@ namespace KSharp
             this.cancellationToken = cancellationToken;
         }
 
-        #endregion
-
-
-        #region "Helper methods"
 
         /// <summary>
-        /// Evaluates cumulated expressions like "1 * 1 * 1"
+        /// Evaluates cumulated expressions like "1 * 1 * 1".
         /// </summary>
         /// <typeparam name="T">Input type of <paramref name="evaluate"/> method.</typeparam>
         /// <typeparam name="TT">Output type of <paramref name="evaluate"/> method.</typeparam>
@@ -117,19 +106,26 @@ namespace KSharp
                 var rightOperand = Visit(rightOperandContext);
 
                 if (convert != null)
-                { 
+                {
                     leftOperand = evaluate(convert(leftOperand), convert(rightOperand));
                 }
-                else 
+                else
                 {
                     leftOperand = evaluate((TT)leftOperand, (TT)rightOperand);
                 }
             }
+
             return leftOperand;
         }
 
 
-        private object InvokeLambdaExpression(Lambda_expressionContext context, object[] arguments)
+        /// <summary>
+        /// Invokes and evaluates lambda expression given by <paramref name="context"/>.
+        /// </summary>
+        /// <param name="context">Context of the lambda expression.</param>
+        /// <param name="parameters">Lambda parameter values.</param>
+        /// <returns>Evaluated lambda expression.</returns>
+        private object InvokeLambdaExpression(Lambda_expressionContext context, object[] parameters)
         {
             var lambdaBodyContext = context.lambda_body();
             if (lambdaBodyContext == null)
@@ -138,25 +134,28 @@ namespace KSharp
             }
 
             var parameterNames = VisitLambda_signature(context.lambda_signature()) as string[];
-            foreach (var name in parameterNames)
+
+            // check if parameter name is not same as some local variable
+            var parametersWithSameName = parameterNames.Where(name => localVariables.ContainsKey(name));
+            if (parametersWithSameName.Any())
             {
-                // check if parameter name is not same as some local variable
-                if (localVariables.ContainsKey(name))
-                {
-                    throw new ArgumentException(name);
-                }
+                throw new ArgumentException($"Parameters {String.Join("; ", parametersWithSameName)} has same name as some local variables.");
             }
 
-            var lambdaVisitor = new KSharpVisitor(evaluator, localVariables, parameterNames, arguments, Token);
+            var lambdaVisitor = new KSharpVisitor(evaluator, localVariables, parameterNames, parameters, Token);
             var result = lambdaVisitor.VisitLambda_body(lambdaBodyContext) as Tuple<IDictionary<string, object>, object>;
 
             // update variables which were changed within lambda
-            UpdateLocalVariables(result.Item1);    
-            
+            UpdateLocalVariables(result.Item1);
+
             return result.Item2;
         }
 
-        
+
+        /// <summary>
+        /// Updates values of the local variables in the scope of lambda expression.
+        /// </summary>
+        /// <param name="lambdaLocals">Pairs of lambda local variables with their new value.</param>
         private void UpdateLocalVariables(IDictionary<string, object> lambdaLocals)
         {
             var newLocals = new Dictionary<string, object>();
@@ -172,11 +171,20 @@ namespace KSharp
         }
 
 
+        /// <summary>
+        /// Initializes value for each local <paramref name="variables"/>.
+        /// </summary>
+        /// <param name="variables">Local variables to be initialized.</param>
+        /// <param name="values">Values of the local variables</param>
         private void InitLocalVariables(string[] variables, object[] values)
         {
-            if (variables.Length != values.Length)
+            if (variables.Length > values.Length)
             {
-                throw new NullReferenceException("Missing method call argument.");
+                throw new InvalidOperationException("At least one value has missing variable to which should assign to.");
+            }
+            else if (variables.Length < values.Length)
+            {
+                throw new InvalidOperationException("At least one variable has missing value.");
             }
 
             for (var i = 0; i < variables.Length; i++)
@@ -186,6 +194,11 @@ namespace KSharp
         }
 
 
+        /// <summary>
+        /// Initializes value for each global <paramref name="variables"/>.
+        /// </summary>
+        /// <param name="variables">Global variables to be initialized.</param>
+        /// <param name="values">Values of the global variables</param>
         private void InitGlobalVariables(IDictionary<string, object> globalVariables)
         {
             foreach (var variable in globalVariables)
@@ -193,10 +206,15 @@ namespace KSharp
                 SetVariable(variable.Key, variable.Value);
             }
         }
-        
 
+
+        /// <summary>
+        /// Evaluates whole expression given by <paramref name="context"/>.
+        /// </summary>
+        /// <returns>Evaluated whole expression.</returns>
         private object VisitTreeBody(Begin_expressionContext context)
         {
+            // Evaluate statements
             var results = VisitStatement_list(context.statement_list()) as IList;
 
             var consoleOutput = evaluator.FlushOutput()?.ToString();
@@ -216,16 +234,12 @@ namespace KSharp
         }
 
 
-        #region "Primary expression methods"
-
+        /// <summary>
+        /// Returns true, if <paramref name="item"/> is identifier.
+        /// </summary>
         private bool IsIdentifier(object item)
         {
-            if (!(item is string) || (item as string).Contains("\""))
-            {
-                return false;
-            }
-
-            return true;
+            return (item is string itemString) && !itemString.Contains("\"");
         }
 
 
@@ -237,7 +251,7 @@ namespace KSharp
                 return InvokeLambdaExpression(lambdaContext as Lambda_expressionContext, arguments as object[]);
             }
 
-            return evaluator.InvokeMethod(methodName as string, arguments);
+            return evaluator.InvokeMethod(methodName, arguments);
         }
 
 
@@ -257,7 +271,7 @@ namespace KSharp
 
             return evaluator.InvokeIndexer(collection, index);
         }
-                   
+
 
         private object EvaluateAccessor(object accessedObject, IParseTree acessorContext, IParseTree argumentsContext)
         {
@@ -269,13 +283,9 @@ namespace KSharp
                 accessedObject = GetVariable(accessedObject.ToString());
             }
 
-            return evaluator.InvokeMember(accessedObject, propertyOrMethodName, arguments);  
+            return evaluator.InvokeMember(accessedObject, propertyOrMethodName, arguments);
         }
 
-        #endregion
-
-
-        #region "Variable access"
 
         private void SetVariable(string name, object value)
         {
@@ -295,11 +305,12 @@ namespace KSharp
             }
         }
 
-        #endregion
 
-
-        #region "Add and substract methods"
-               
+        /// <summary>
+        /// Returns evaluated "+" operation between <paramref name="leftOperand"/> and <paramref name="rightOperand"/>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException" />
+        /// <seealso cref="OperatorTypeEnum.PLUS"/>
         private object AddObjects(object leftOperand, object rightOperand)
         {
             var areIntegers = leftOperand is int && rightOperand is int;
@@ -313,7 +324,7 @@ namespace KSharp
             {
                 return Convert.ToDecimal(leftOperand) + Convert.ToDecimal(rightOperand);
             }
-            
+
             if (leftOperand is DateTime)
             {
                 if (rightOperand is TimeSpan)
@@ -336,6 +347,11 @@ namespace KSharp
         }
 
 
+        /// <summary>
+        /// Returns evaluated "-" operation between <paramref name="leftOperand"/> and <paramref name="rightOperand"/>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException" />
+        /// <seealso cref="OperatorTypeEnum.MINUS"/>
         private object SubstractObjects(object leftOperand, object rightOperand)
         {
             var areIntegers = leftOperand is int && rightOperand is int;
@@ -366,15 +382,16 @@ namespace KSharp
             {
                 return ((TimeSpan)leftOperand).Subtract((TimeSpan)rightOperand);
             }
-            
-            throw new InvalidOperationException($"Objects of types {leftOperand.GetType().Name} and {rightOperand.GetType().Name} can not be substracted.");
+
+            throw new InvalidOperationException($"Objects of types {leftOperand.GetType().Name} and {rightOperand.GetType().Name} can not be subtracted.");
         }
 
-        #endregion
 
-
-        #region "Comparison methods"
-
+        /// <summary>
+        /// Returns comparer based on type of <paramref name="leftOperand"/> and <paramref name="rightOperand"/>.
+        /// </summary>
+        /// <param name="leftOperand"></param>
+        /// <param name="rightOperand"></param>
         private IComparer GetComparer(object leftOperand, object rightOperand)
         {
             Type leftType = leftOperand?.GetType();
@@ -410,16 +427,19 @@ namespace KSharp
             }
 
             IComparer comparer = evaluator
-            .KnownComparers
-            .Where(comp => type.IsAssignableFrom(comp.Key))
-            .FirstOrDefault()
-            .Value
-            ?? Comparer.Default;
+                .KnownComparers
+                .Where(comp => type.IsAssignableFrom(comp.Key))
+                .FirstOrDefault()
+                .Value
+                ?? Comparer.Default;
 
             return comparer;
         }
 
 
+        /// <summary>
+        /// Returns true if given <paramref name="type"/> is number.
+        /// </summary>
         private bool IsNumeric(Type type)
         {
             return mNumericTypes.Contains(type);
@@ -446,20 +466,12 @@ namespace KSharp
             => GetComparer(leftOperand, rightOperand).Compare(leftOperand, rightOperand) == 0;
 
 
-        private bool IsUnequal(object leftOperand, object rightOperand) 
+        private bool IsUnequal(object leftOperand, object rightOperand)
             => !IsEqual(leftOperand, rightOperand);
 
-        #endregion
-
-        #endregion
-
-
-        #region "Rule visit methods"
-
-        #region "Parameters"
 
         /// <summary>
-        /// Saves the parameter to context. 
+        /// Saves the parameter to context.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns><c>null</c></returns>
@@ -486,7 +498,7 @@ namespace KSharp
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Value of the parameter.</returns>
         public override object VisitParameter_value([NotNull] Parameter_valueContext context)
-        {            
+        {
             if (context.GetChild(0) is LiteralContext)
             {
                 return VisitLiteral(context.literal());
@@ -506,16 +518,12 @@ namespace KSharp
             return context.GetText();
         }
 
-        #endregion
-
-
-        #region "Literals"
 
         /// <summary>
-        /// Evaluates string expression.
+        /// Evaluates string literal expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
-        /// <returns>String value.</returns>
+        /// <returns>Evaluated string literal.</returns>
         public override object VisitString_literal([NotNull] String_literalContext context)
         {
             var verb = context.VERBATIUM_STRING();
@@ -532,16 +540,16 @@ namespace KSharp
         /// Evaluates boolean expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
-        /// <returns>Boolean value.</returns>
-        public override object VisitBoolean_literal([NotNull] Boolean_literalContext context) 
+        /// <returns>Evaluated boolean value.</returns>
+        public override object VisitBoolean_literal([NotNull] Boolean_literalContext context)
             => Convert.ToBoolean(context.GetText());
 
 
         /// <summary>
-        /// Evaluates percent expression. 
+        /// Evaluates percent expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
-        /// <returns>Decimal value.</returns>
+        /// <returns>Evaluated decimal value.</returns>
         public override object VisitPercent_literal([NotNull] Percent_literalContext context)
         {
             var percentValue = context.INTEGER_LITERAL() ?? context.REAL_LITERAL();
@@ -610,10 +618,6 @@ namespace KSharp
             return null;
         }
 
-        #endregion
-
-
-        #region "Assignment"
 
         /// <summary>
         /// Sets a local value according to specified assignment operator.
@@ -625,29 +629,19 @@ namespace KSharp
             var variableName = context.IDENTIFIER().GetText();
             var variableOriginalValue = GetVariable(variableName);
 
-            // i++, ++i, i--, --i
-            if (context.INC() != null || context.DEC() != null)
+            if (context.INC() != null)
             {
-                if (variableOriginalValue == null)
-                {
-                    throw new NullReferenceException("Cannot increment undefined value.");
-                }
-
-                var value = Convert.ToInt32(variableOriginalValue);
-                if (context.INC() != null)
-                {
-                    value++;
-                }
-                else
-                {
-                    value--;
-                }
-
-                SetVariable(variableName, value);
-
-                return value;
+                // i++, ++i
+                InvalidateVariableValue(variableName, variableOriginalValue);
+                return EvaluateIncrement(variableName, variableOriginalValue);
             }
-            
+            else if (context.DEC() != null)
+            {
+                //  i--, --i
+                InvalidateVariableValue(variableName, variableOriginalValue);
+                return EvaluateDecrease(variableName, variableOriginalValue);
+            }
+
             // =, +=, -=, *=, ...
             var assignableContext = context.assignable_expression();
             if (assignableContext == null)
@@ -658,6 +652,11 @@ namespace KSharp
             var assignableValue = VisitAssignable_expression(assignableContext);
 
             var operationType = this.MatchAssignmentOperator(context.assignment_operator());
+            if (operationType != OperatorTypeEnum.ASSIGN)
+            {
+                InvalidateVariableValue(variableName, variableOriginalValue);
+            }
+
             switch (operationType)
             {
                 case OperatorTypeEnum.PLUS_ASSIGN:
@@ -696,14 +695,44 @@ namespace KSharp
 
             return null;
         }
-        
-        #endregion
 
 
-        #region "Operations"
+        private object EvaluateIncrement(string variableName, object variableOriginalValue)
+        {
+            var value = Convert.ToInt32(variableOriginalValue);
+            ++value;
+
+            SetVariable(variableName, value);
+
+            return value;
+        }
+
+
+        private object EvaluateDecrease(string variableName, object variableOriginalValue)
+        {
+            var value = Convert.ToInt32(variableOriginalValue);
+            --value;
+
+            SetVariable(variableName, value);
+
+            return value;
+        }
+
 
         /// <summary>
-        /// Evaluates ?? operator.
+        /// Invalidates whether <paramref name="variableName"/> has assigned any value.
+        /// </summary>
+        private static void InvalidateVariableValue(string variableName, object variableOriginalValue)
+        {
+            if (variableOriginalValue == null)
+            {
+                throw new InvalidOperationException($"Cannot apply any operation on variable '{variableName}' without assigned value.");
+            }
+        }
+
+
+        /// <summary>
+        /// Evaluates "??" operator.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Left value if it is not null, right value otherwise.</returns>
@@ -741,20 +770,20 @@ namespace KSharp
 
 
         /// <summary>
-        /// Evaluates additive expression. 
+        /// Evaluates additive expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Result of addition.</returns>
-        public override object VisitAdd_expression([NotNull] Add_expressionContext context) 
+        public override object VisitAdd_expression([NotNull] Add_expressionContext context)
             => EvaluateAllAlternatives(context, AddObjects, (Func<object, object>)null);
 
 
         /// <summary>
-        /// Evaluates substract expression. 
+        /// Evaluates subtracts expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
-        /// <returns>Result of substraction.</returns>
-        public override object VisitSubstract_expression([NotNull] Substract_expressionContext context) 
+        /// <returns>Result of subtraction.</returns>
+        public override object VisitSubstract_expression([NotNull] Substract_expressionContext context)
             => EvaluateAllAlternatives(context, SubstractObjects, (Func<object, object>)null);
 
 
@@ -763,7 +792,7 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Result of multiplication.</returns>
-        public override object VisitMultiplicative_expression([NotNull] Multiplicative_expressionContext context) 
+        public override object VisitMultiplicative_expression([NotNull] Multiplicative_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left * right, Convert.ToDecimal);
 
 
@@ -772,7 +801,7 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Result of division.</returns>
-        public override object VisitDivide_expression([NotNull] Divide_expressionContext context) 
+        public override object VisitDivide_expression([NotNull] Divide_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left / right, Convert.ToDecimal);
 
 
@@ -781,7 +810,7 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Result of modulo.</returns>
-        public override object VisitModulo_expression([NotNull] Modulo_expressionContext context) 
+        public override object VisitModulo_expression([NotNull] Modulo_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left % right, Convert.ToDecimal);
 
 
@@ -790,52 +819,52 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Result of equality.</returns>
-        public override object VisitEquality_expression([NotNull] Equality_expressionContext context) 
+        public override object VisitEquality_expression([NotNull] Equality_expressionContext context)
             => EvaluateAllAlternatives(context, IsEqual, (Func<object, object>)null);
 
 
         /// <summary>
-        /// Evaluates unequality expression.
+        /// Evaluates inequality expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
-        /// <returns>Result of unequality.</returns>
-        public override object VisitUnequality_expression([NotNull] Unequality_expressionContext context) 
+        /// <returns>Result of inequality.</returns>
+        public override object VisitUnequality_expression([NotNull] Unequality_expressionContext context)
             => EvaluateAllAlternatives(context, IsUnequal, (Func<object, object>)null);
 
 
         /// <summary>
-        /// Evaluates > expression. 
+        /// Evaluates > expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitGreater_than_expression([NotNull] Greater_than_expressionContext context) 
+        public override object VisitGreater_than_expression([NotNull] Greater_than_expressionContext context)
             => EvaluateAllAlternatives(context, IsGreater, (Func<object, object>)null);
 
 
         /// <summary>
-        /// Evaluates >= expression. 
+        /// Evaluates >= expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitGreater_than_or_equal_expression([NotNull] Greater_than_or_equal_expressionContext context) 
+        public override object VisitGreater_than_or_equal_expression([NotNull] Greater_than_or_equal_expressionContext context)
             => EvaluateAllAlternatives(context, IsGreaterOrEqual, (Func<object, object>)null);
 
 
         /// <summary>
-        /// Evaluates &lt; expression. 
+        /// Evaluates &lt; expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitLess_than_expression([NotNull] Less_than_expressionContext context) 
+        public override object VisitLess_than_expression([NotNull] Less_than_expressionContext context)
             => EvaluateAllAlternatives(context, IsLess, (Func<object, object>)null);
 
 
         /// <summary>
-        /// Evaluates &lt;= expression. 
+        /// Evaluates &lt;= expression.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitLess_than_or_equal_expression([NotNull] Less_than_or_equal_expressionContext context) 
+        public override object VisitLess_than_or_equal_expression([NotNull] Less_than_or_equal_expressionContext context)
             => EvaluateAllAlternatives(context, IsLessOrEqual, (Func<object, object>)null);
 
 
@@ -844,16 +873,16 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitOr_expression([NotNull] Or_expressionContext context) 
+        public override object VisitOr_expression([NotNull] Or_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left || right, Convert.ToBoolean);
 
 
         /// <summary>
-        /// Evaluates logical xor.
+        /// Evaluates logical XOR.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitXor_expression([NotNull] Xor_expressionContext context) 
+        public override object VisitXor_expression([NotNull] Xor_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left ^ right, Convert.ToBoolean);
 
 
@@ -862,7 +891,7 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitAnd_expression([NotNull] And_expressionContext context) 
+        public override object VisitAnd_expression([NotNull] And_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left && right, Convert.ToBoolean);
 
 
@@ -882,13 +911,9 @@ namespace KSharp
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitRight_shift_expression([NotNull] Right_shift_expressionContext context) 
+        public override object VisitRight_shift_expression([NotNull] Right_shift_expressionContext context)
             => EvaluateAllAlternatives(context, (left, right) => left >> right, Convert.ToInt32);
 
-        #endregion
-
-
-        #region "If statement"
 
         /// <summary>
         /// Evaluates if statement.
@@ -912,10 +937,6 @@ namespace KSharp
             return null;
         }
 
-        #endregion
-
-
-        #region "Loops"
 
         /// <summary>
         /// Evaluates for loop.
@@ -966,7 +987,7 @@ namespace KSharp
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
         public override object VisitWhile_expression([NotNull] While_expressionContext context)
-        {            
+        {
             List<object> results = new List<object>();
 
             var conditionContext = context.ternary_expression();
@@ -1076,17 +1097,12 @@ namespace KSharp
         }
 
 
-        #endregion
-
-
-        #region "Lambda expressions"
-
         /// <summary>
-        /// Evaluates lambda expression. Returns the context of expression as it will be evaluated later. 
+        /// Evaluates lambda expression. Returns the context of expression as it will be evaluated later.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns><see cref="Lambda_expressionContext"/> instance.</returns>
-        public override object VisitLambda_expression([NotNull] Lambda_expressionContext context) 
+        public override object VisitLambda_expression([NotNull] Lambda_expressionContext context)
             => context;
 
 
@@ -1146,18 +1162,15 @@ namespace KSharp
             return new Tuple<IDictionary<string, object>, object>(localVariables, result);
         }
 
+
         /// <summary>
         /// Evaluates the names of lambda parameters.
         /// </summary>
         /// <param name="context"></param>
         /// <returns>List of parameter names.</returns>
-        public override object VisitLambda_signature_parameter_list([NotNull] Lambda_signature_parameter_listContext context) 
+        public override object VisitLambda_signature_parameter_list([NotNull] Lambda_signature_parameter_listContext context)
             => context.IDENTIFIER().Select(parameter => parameter.GetText()).ToArray();
 
-        #endregion
-
-
-        #region "Method evaluation"
 
         /// <summary>
         /// Extracts arguments of a method call.
@@ -1192,24 +1205,20 @@ namespace KSharp
             List<object> arguments = new List<object>();
             foreach (var argument in argumentContext)
             {
-                var argumentResult = VisitArgument(argument);                
+                var argumentResult = VisitArgument(argument);
                 arguments.Add(argumentResult);
             }
 
             return arguments.ToArray();
         }
 
-        #endregion
-
-
-        #region "High level structure expressions"
 
         /// <summary>
         /// Evaluates parentheses expression.
         /// </summary>
         /// <param name="context"></param>
         /// <returns>Expression result.</returns>
-        public override object VisitParentheses_expression([NotNull] Parentheses_expressionContext context) 
+        public override object VisitParentheses_expression([NotNull] Parentheses_expressionContext context)
             => VisitExpression(context.expression());
 
 
@@ -1232,7 +1241,7 @@ namespace KSharp
                 VisitAssignment(innerContext as AssignmentContext);
             }
 
-            return null;            
+            return null;
         }
 
 
@@ -1255,7 +1264,7 @@ namespace KSharp
             return VisitTreeBody(context);
         }
 
-        
+
         /// <summary>
         /// Evaluates all statements.
         /// </summary>
@@ -1301,7 +1310,7 @@ namespace KSharp
                     }
                 }
 
-                // in case a jump statement occured, stop processing statements
+                // in case a jump statement occurred, stop processing statements
                 if (breakLoop || returnFromLoop || continueLoop)
                 {
                     break;
@@ -1317,12 +1326,12 @@ namespace KSharp
         /// </summary>
         /// <param name="context"></param>
         /// <returns>Expression result.</returns>
-        public override object VisitBlock([NotNull] BlockContext context) 
+        public override object VisitBlock([NotNull] BlockContext context)
             => VisitStatement_list(context.statement_list());
 
 
         /// <summary>
-        /// Evaluates primary expression. Primary expression can be anything from a simple literal or identifier to a method call, property acessor, array indexer.
+        /// Evaluates primary expression. Primary expression can be anything from a simple literal or identifier to a method call, property accessors, array indexer.
         /// </summary>
         /// <param name="context"></param>
         /// <returns>Expression result.</returns>
@@ -1331,7 +1340,7 @@ namespace KSharp
             object expStart = VisitPrimary_expression_start(context.primary_expression_start());
             bool canBeIdentifier = true;
 
-            int numberOfChilren = context.children.Count;                     
+            int numberOfChilren = context.children.Count;
             for (var i = 1; i < numberOfChilren; i++)
             {
                 // if the expression is more than just a simple expression, the evaluated value will never be identifier
@@ -1372,12 +1381,12 @@ namespace KSharp
                 }
 
             }
-            
+
             if (IsIdentifier(expStart) && canBeIdentifier)
             {
                 return GetVariable(expStart as string);
             }
-            
+
             // remove quotes from strings
             if (expStart is string)
             {
@@ -1390,11 +1399,11 @@ namespace KSharp
 
 
         /// <summary>
-        /// Evaluates the accessor name.
+        /// Evaluates the accessors name.
         /// </summary>
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Expression result.</returns>
-        public override object VisitMember_access([NotNull] Member_accessContext context) 
+        public override object VisitMember_access([NotNull] Member_accessContext context)
             => context.IDENTIFIER().GetText();
 
 
@@ -1407,7 +1416,7 @@ namespace KSharp
         {
             var indexerArgumentContext = context.indexer_argument();
             object leftMostIndexer = VisitIndexer_argument(indexerArgumentContext[0]);
-            
+
             int accessLevels = indexerArgumentContext.Length;
             for (var i = 1; i < accessLevels; i++)
             {
@@ -1420,7 +1429,7 @@ namespace KSharp
 
             return leftMostIndexer;
         }
-        
+
 
         /// <summary>
         /// Evaluates the start of the expression.
@@ -1467,9 +1476,9 @@ namespace KSharp
             object unaryValue = VisitUnary_expression(unaryContext);
             OperatorTypeEnum operatorType = this.MatchUnaryOperator(context);
             switch (operatorType)
-            { 
+            {
                 case OperatorTypeEnum.MINUS:
-                    return Convert.ToDecimal(unaryValue) * (-1); 
+                    return Convert.ToDecimal(unaryValue) * (-1);
 
                 case OperatorTypeEnum.BANG:
                     return !Convert.ToBoolean(unaryValue);
@@ -1478,7 +1487,7 @@ namespace KSharp
                 case OperatorTypeEnum.NONE:
                 default:
                     return Convert.ToDecimal(unaryValue);
-            }           
+            }
         }
 
 
@@ -1501,11 +1510,7 @@ namespace KSharp
                 return VisitBlock(innerContext as BlockContext);
             }
 
-            return null;            
+            return null;
         }
-
-        #endregion
-
-        #endregion
     }
 }

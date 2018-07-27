@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace KSharp
+namespace KSharpParser.Comparers
 {
     /// <summary>
     /// Converts numeric values into decimal and compares them.
