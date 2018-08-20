@@ -585,18 +585,6 @@ namespace KSharpParser.Visitors
                 return simpleLiteral.GetText();
             }
 
-            simpleLiteral = context.DATE();
-            if (simpleLiteral != null)
-            {
-                return DateTime.Parse(simpleLiteral.GetText());
-            }
-
-            simpleLiteral = context.GUID();
-            if (simpleLiteral != null)
-            {
-                return Guid.Parse(simpleLiteral.GetText());
-            }
-
             ParserRuleContext complexLiteral = context.percent_literal();
             if (complexLiteral != null)
             {
