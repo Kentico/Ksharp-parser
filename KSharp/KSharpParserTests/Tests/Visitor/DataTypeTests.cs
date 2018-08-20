@@ -25,11 +25,11 @@ namespace KSharpParser.Tests
                 new object[] { "\"String\"", "String"}
             };
 
-            [TestCaseSource("BasicStructuresSource")]         
+            [TestCaseSource("BasicStructuresSource")]
             public void BasicStructures_IsSuccessful_HasResult(string input, object expected)
             {
                 var tree = GetParser(input).begin_expression();
-				
+
                 Assert.IsNull(tree.exception);
                 Assert.AreEqual(expected, Visitor.GetFirstResult(tree));
             }
@@ -76,7 +76,7 @@ namespace KSharpParser.Tests
 
 
             [TestCase("")]
-            [TestCase(" ")]            
+            [TestCase(" ")]
             public void String_IsSuccessful_HasResult(string input)
             {
                 var tree = GetParser(input).begin_expression();
@@ -90,36 +90,6 @@ namespace KSharpParser.Tests
             public void String_NotSuccessful_ThrowsInvalidOperation(string input)
             {
                 Assert.Throws<InvalidOperationException>(() => Visitor.GetFirstResult(GetParser(input).begin_expression()));
-            }
-        }
-
-
-        [TestFixture]
-        public class GuidTests : KSharpTestBase
-        {
-            [TestCase("0362d604-e293-496e-a73f-abdf522ce31d")]
-
-            public void Guid_IsSuccessful_HasResult(string input)
-            {
-                var tree = GetParser(input).begin_expression();
-
-                Assert.IsNull(tree.exception);
-                Assert.AreEqual(new Guid("0362d604-e293-496e-a73f-abdf522ce31d"), Visitor.GetFirstResult(tree));
-            }
-        }
-
-
-        [TestFixture]
-        public class DateTimeTests : KSharpTestBase
-        {
-            [TestCase("12.12.2012")]
-            [TestCase("12/12/2012")]
-            public void DateTime_IsSuccessful_HasResult(string input)
-            {
-                var tree = GetParser(input).begin_expression();
-
-                Assert.IsNull(tree.exception);
-                Assert.AreEqual(new DateTime(2012, 12, 12), Visitor.GetFirstResult(tree));
             }
         }
     }

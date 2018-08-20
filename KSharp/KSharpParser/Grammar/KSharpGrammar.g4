@@ -269,9 +269,7 @@ literal
 	| INTEGER_LITERAL 
 	| REAL_LITERAL
 	| CHARACTER_LITERAL
-	| DATE
-	| GUID
-	| NULL	  
+	| NULL
 	;
 
 percent_literal
@@ -393,18 +391,9 @@ EMPTY_STRING : '""';
 
 REAL_LITERAL:            [0-9]* '.' [0-9]+ ExponentPart? [FfDdMm]? | [0-9]+ ([FfDdMm] | ExponentPart [FfDdMm]?);
 INTEGER_LITERAL:         [0-9]+ IntegerTypeSuffix?;
-DATE
-	: [0-3]? [0-9] PERIOD [0-1]? [0-9] PERIOD [0-9] [0-9] [0-9] [0-9] 
-	| [0-3]? [0-9] DIV [0-1]? [0-9] DIV [0-9] [0-9] [0-9] [0-9] 
-	;
 
 
-CULTURE_CODE:            ([A-Z] | [a-z]) ([A-Z] | [a-z]) '-' ([A-Z] | [a-z]) ([A-Z] | [a-z]); 
-GUID:			       GuidStart MINUS GuidMiddle MINUS GuidMiddle MINUS GuidMiddle MINUS GuidEnd;
-
-GuidStart: ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9]) ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9]);
-GuidMiddle:    ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9]);
-GuidEnd: ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9]) ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9]) ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9])   ([A-Z] | [a-z] | [0-9]);
+CULTURE_CODE:            ([A-Z] | [a-z]) ([A-Z] | [a-z]) '-' ([A-Z] | [a-z]) ([A-Z] | [a-z]);
 
 //Stop
 NEWLINE: ('\r\n'|'\n'|'\r')  -> channel(HIDDEN);
