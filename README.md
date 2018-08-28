@@ -22,3 +22,5 @@ The current verion of parser is v1.0.0.
 The NuGet packages with K# parser are currently only available via internal Kentico NuGet feed. Publishing to the official NuGet Gallery is considered for the future.
 
 [![AppVeyor tests](https://img.shields.io/appveyor/tests/Desana/Ksharp-parser.svg)](https://ci.appveyor.com/project/desana/ksharp-parser/build/tests)
+
+![Analytics](https://kentico-ga-beacon.azurewebsites.net/api/UA-69014260-4/Kentico/Ksharp-parser?pixel)
