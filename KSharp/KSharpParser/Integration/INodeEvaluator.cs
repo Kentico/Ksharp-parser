@@ -32,7 +32,7 @@ namespace KSharpParser
         /// </summary>
         /// <param name="variableName">Name of the variable.</param>
         /// <returns>Value of a system variable.</returns>
-        object GetVariableValue(string variableName);
+        object GetVariableValue(string variableName, bool encapsulate = true);
 
 
         /// <summary>
@@ -75,5 +75,13 @@ namespace KSharpParser
         /// </summary>
         /// <returns>Cancellation token.</returns>
         CancellationToken GetCancellationToken();
+
+
+        /// <summary>
+        /// Saves the parameter value into global evaluation context.
+        /// </summary>
+        /// <param name="parameterName">Name of the parameter.</param>
+        /// <param name="parameterValue">Value of the parameter.</param>
+        void SetContextLocalVariable(string parameterName, object parameterValue);
     }
 }
