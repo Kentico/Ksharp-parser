@@ -17,7 +17,7 @@ namespace KSharpParser.Tests
             KSharpGrammarParser parser = new KSharpGrammarParser(commonTokenStream);
             return parser;
         }
-        
+
 
         public static int GetParsingErrors(string input)
         {
@@ -93,7 +93,7 @@ namespace KSharpParser.Tests
             [TestCase("false && false")]
             [TestCase("false && true")]
             [TestCase("true && false")]
-            
+
             [TestCase("true or false")]
 
             [TestCase("true and false")]
@@ -133,7 +133,7 @@ namespace KSharpParser.Tests
             }
         }
 
-               
+
         [TestFixture]
         public class AssignmentTests
         {
@@ -153,7 +153,7 @@ namespace KSharpParser.Tests
             }
         }
 
-      
+
         [TestFixture]
         public class ArithmeticTests
         {
@@ -212,7 +212,7 @@ namespace KSharpParser.Tests
 
             [TestCase("\"String\" + \"AnotherString\"")]
             [TestCase("\"String\" - \"AnotherString\"")]
-            
+
             [TestCase("\"String\" \"AnotherString\"")]
 
             [TestCase("Variable = \"String\" + \"AnotherString\"")]
@@ -230,8 +230,8 @@ namespace KSharpParser.Tests
             {
                 Assert.AreEqual(0, GetParsingErrors(input));
             }
-                     
-             
+
+
             [TestCase("@\"\"\"")]
             [TestCase("@\"\"\"\"\"")]
             public void String_NotSuccessful(string input)
@@ -240,13 +240,13 @@ namespace KSharpParser.Tests
             }
         }
 
-        
+
         [TestFixture]
         public class IfTests
         {
             [TestCase("if (Condition) { Value; }")]
 
-            [TestCase("if (Condition) { return Value }")]        
+            [TestCase("if (Condition) { return Value }")]
             [TestCase("if (Condition) { return Value } else { return AnotherValue }")]
 
             [TestCase("if (!Condition) { return Value }")]
@@ -284,7 +284,7 @@ namespace KSharpParser.Tests
                 Assert.AreNotEqual(0, GetParsingErrors(input));
             }
         }
-        
+
 
         [TestFixture]
         public class DateTimeTests
@@ -318,7 +318,7 @@ namespace KSharpParser.Tests
 
             [TestCase("x = 0; for (i = 0; i < 10; i++) { print(i); if (i == 5) { return; } }")]
             [TestCase("x = 0; for (i = 0; i < 10; i++) { print(i); if (i == 5) { return unresolved; } }")]
-            [TestCase("x = 0; for (i = 0; i < 10; i++) { if (i == 5) { return; } }")]            
+            [TestCase("x = 0; for (i = 0; i < 10; i++) { if (i == 5) { return; } }")]
             public void Return_IsSuccessful(string input)
             {
                 Assert.AreEqual(0, GetParsingErrors(input));
@@ -375,7 +375,7 @@ namespace KSharpParser.Tests
             [TestCase("for (x = 1; x < 10) { x }")]
 
             [TestCase("for (x = 1; if (1>2){return Value;}; x++){return null;}")]
-            
+
             [TestCase("y = for (i = 1; i <= 3; i++) { i; }")]
             public void For_NotSuccessful(string input)
             {
@@ -383,7 +383,7 @@ namespace KSharpParser.Tests
             }
         }
 
-        
+
         [TestFixture]
         public class ForeachTests
         {
@@ -410,7 +410,7 @@ namespace KSharpParser.Tests
             [TestCase("foreach (x in \"output\") print(x)")]
 
             [TestCase("y = foreach (x in \"output\") { print(x) }")]
-            
+
             [TestCase("foreach (1+1 in 2+2) { x }")]
             [TestCase("foreach (i in 2+2) { x }")]
             public void Foreach_NotSuccessful(string input)
@@ -419,7 +419,7 @@ namespace KSharpParser.Tests
             }
         }
 
-        
+
         [TestFixture]
         public class WhileTests
         {
@@ -446,7 +446,7 @@ namespace KSharpParser.Tests
 
             [TestCase("while (true) print(x.y)")]
             [TestCase("while (if (z<10) {a++}) {++z} ")]
-            
+
             [TestCase("y = while (z<10) {++z} ")]
             public void While_NotSuccessful(string input)
             {
@@ -487,9 +487,9 @@ namespace KSharpParser.Tests
                 Assert.AreEqual(0, GetParsingErrors(input));
             }
         }
-                
 
-        [TestFixture]        
+
+        [TestFixture]
         public class ParameterTests
         {
             [TestCase("CurrentUser.UserDateOfBirth|(default)N\\|A")]
@@ -500,7 +500,7 @@ namespace KSharpParser.Tests
             [TestCase("GetDocumentUrl()|(timeout)2000")]
             [TestCase("QueryString.Param|(handlesqlinjection)true")]
             [TestCase("Documents[\"/News\"].Children.WithAllData|(debug)true")]
-            
+
             [TestCase("\"<br>\"|(encode)")]
             [TestCase("\"<br>\"|(encode)true")]
 
@@ -567,7 +567,7 @@ return c
             [TestCase("print(\"Console\"); 2 + 3; return")]
             [TestCase("print(\"Console priority\") + \" works\"")]
             [TestCase("\"Simple string literal\"")]
-            [TestCase("\"3.456\"")]                        
+            [TestCase("\"3.456\"")]
 
             [TestCase("x[y[z]]")]
             [TestCase("x mod y == 2 of 100")]
@@ -662,6 +662,7 @@ return c
             [TestCase("List(\"Apple\", \"Orange\", \"Banana\")")]
 
             [TestCase("(1>20) ? \"lol\" : {if (5>1){\"Hello\"}};")]
+            [TestCase("foreach (i in array) { print(resolveMacros(\"{% i %} YEA \")) }")]
             public void Uncategorized_IsSuccessful(string input)
             {
                 Assert.AreEqual(0, GetParsingErrors(input));

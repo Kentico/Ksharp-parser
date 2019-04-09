@@ -88,9 +88,12 @@ namespace KSharpParser.Tests
         [TestFixture]
         public class ForeachTests : KSharpTestBase
         {
-            [TestCase("y = List(1,2,3,4,4,5,4); foreach (x in y) {x}", new object[]{ 1, 2, 3, 4, 4, 5, 4 })]      
-            [TestCase("foreach (x in \"hello\") {x.toupper()}", new object[] { "H","E","L","L", "O" })]
-            [TestCase("array = List(1,2); foreach (i in array) { foreach (j in array) { j } }", new object[] { 1,2,1,2 })]
+            [TestCase("y = List(1,2,3,4,4,5,4); foreach (x in y) {x}", new object[] { 1, 2, 3, 4, 4, 5, 4 })]
+            [TestCase("foreach (x in \"hello\") {x.toupper()}", new object[] { "H", "E", "L", "L", "O" })]
+            [TestCase("array = List(1,2); foreach (i in array) { foreach (j in array) { j } }", new object[] { 1, 2, 1, 2 })]
+            [TestCase("foreach (i in \"ABC\") { print(resolveMacros(\"{% i %}YEA \")) }", new object[] { "AYEA BYEA CYEA " })]
+            [TestCase("foreach (i in \"ABC\") { resolveMacros(\"{% i %}YEA \") }", new object[] { "AYEA ", "BYEA ", "CYEA " })]
+
             public void Foreach_IsSuccessful(string input, object expected)
             {
                 var tree = GetParser(input).begin_expression();

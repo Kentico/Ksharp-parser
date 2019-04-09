@@ -58,11 +58,11 @@ namespace KSharpParser.Tests
             [TestCase("\"\" + 23.05", "23.05")]
             [TestCase("\"\" + False", "False")]
 
-            [TestCase("@\"This string displays as is. No newlines\n, tabs\t or backslash-escapes\\.\"", "This string displays as is. No newlines\n, tabs\t or backslash-escapes\\.")]
+            [TestCase("@\"This string displays as is. No newlines\n, tabs\t or backslash-escapes\\.\"", "This string displays as is. No newlines\n, tabs\t or backslash-escapes.")]
 
             [TestCase("\"<br>\"", "<br>")]
             [TestCase("\"string\" + 5", "string5")]
-            [TestCase("\"\\\"\"", "\\")]
+            [TestCase("\"\\\"\"", "\"")]
             [TestCase("\"String\" \"AnotherString\"", "String")]
             [TestCase("@\"\"", "")]
             [TestCase("\"\"", "")]

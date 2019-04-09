@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Threading;
+using System.Text.RegularExpressions;
 
 using KSharpParser.Comparers;
 using static KSharpParser.KSharpGrammarParser;
@@ -276,11 +277,11 @@ namespace KSharpParser.Visitors
         private object EvaluateAccessor(object accessedObject, IParseTree acessorContext, IParseTree argumentsContext)
         {
             var propertyOrMethodName = (string)VisitMember_access(acessorContext as Member_accessContext);
-            var arguments = argumentsContext == null ? null :VisitMethod_invocation(argumentsContext as Method_invocationContext) as object[];
+            var arguments = argumentsContext == null ? null : VisitMethod_invocation(argumentsContext as Method_invocationContext) as object[];
 
             if (IsIdentifier(accessedObject) && (string)accessedObject != String.Empty)
             {
-                accessedObject = GetVariable(accessedObject.ToString());
+                accessedObject = GetVariable(accessedObject.ToString(), false);
             }
 
             return evaluator.InvokeMember(accessedObject, propertyOrMethodName, arguments);
@@ -290,10 +291,11 @@ namespace KSharpParser.Visitors
         private void SetVariable(string name, object value)
         {
             localVariables[name] = value;
+            evaluator.SetContextLocalVariable(name, value);
         }
 
 
-        private object GetVariable(string name)
+        internal object GetVariable(string name, bool encapsulate = true)
         {
             if (localVariables.TryGetValue(name, out object value))
             {
@@ -301,7 +303,7 @@ namespace KSharpParser.Visitors
             }
             else
             {
-                return evaluator.GetVariableValue(name);
+                return evaluator.GetVariableValue(name, encapsulate);
             }
         }
 
@@ -403,8 +405,8 @@ namespace KSharpParser.Visitors
             }
 
             var type = leftType;
-            if (leftType != rightType) {
-
+            if (leftType != rightType)
+            {
                 if (IsNumeric(leftType) && IsNumeric(rightType))
                 {
                     return new NumericComparer();
@@ -753,7 +755,7 @@ namespace KSharpParser.Visitors
                 return condition;
             }
 
-            return VisitEmbedded_statement((bool) condition ? leftAlternativeContext : context.embedded_statement(1));
+            return VisitEmbedded_statement((bool)condition ? leftAlternativeContext : context.embedded_statement(1));
         }
 
 
@@ -938,7 +940,7 @@ namespace KSharpParser.Visitors
             List<object> results = new List<object>();
 
             var conditionContext = context.ternary_expression();
-            bool conditionResult = (bool) VisitTernary_expression(conditionContext);
+            bool conditionResult = (bool)VisitTernary_expression(conditionContext);
 
             while (conditionResult)
             {
@@ -1029,8 +1031,7 @@ namespace KSharpParser.Visitors
 
             foreach (object item in collection)
             {
-                Token.ThrowIfCancellationRequested();
-
+                //Token.ThrowIfCancellationRequested();
                 SetVariable(identifierName, item);
 
                 if (VisitBlock(context.block()) is List<object> blockResult)
@@ -1105,9 +1106,10 @@ namespace KSharpParser.Visitors
             var identifier = context.IDENTIFIER();
             if (identifier != null)
             {
-                result = new string[]{ identifier.GetText()};
+                result = new string[] { identifier.GetText() };
             }
-            else {
+            else
+            {
 
                 var paramaterList = context.lambda_signature_parameter_list();
                 if (paramaterList != null)
@@ -1166,7 +1168,7 @@ namespace KSharpParser.Visitors
         /// <param name="context">Context of the parser rule.</param>
         /// <returns>Arguments of a method call.</returns>
         public override object VisitMethod_invocation([NotNull] Method_invocationContext context)
-         {
+        {
             var argumentListContext = context.argument_list();
             if (argumentListContext != null)
             {
@@ -1174,7 +1176,7 @@ namespace KSharpParser.Visitors
             }
 
             return new string[0];
-         }
+        }
 
 
         /// <summary>
@@ -1268,7 +1270,8 @@ namespace KSharpParser.Visitors
             foreach (var statement in statements)
             {
                 var statementResult = VisitStatement(statement);
-                if (statementResult != null) {
+                if (statementResult != null)
+                {
 
                     consoleOutput = evaluator.FlushOutput()?.ToString();
 
@@ -1376,9 +1379,14 @@ namespace KSharpParser.Visitors
             }
 
             // remove quotes from strings
-            if (expStart is string)
+            if (expStart is string expSt)
             {
-                return ((string)expStart).Trim('\"');
+                if(expSt.StartsWith("\"") && expSt.EndsWith("\""))
+                {
+                    return Regex.Unescape(expSt.Substring(1, expSt.Length - 2));
+                }
+
+                return expSt;
             }
 
             return expStart;

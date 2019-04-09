@@ -46,7 +46,6 @@ namespace KSharpParser.Tests
             [TestCase("Cache(\"string\".ToUpper())", "STRING - Cached")]
             [TestCase("DocumentName.ToString()", "This is sparta!")]
             [TestCase("DocumentName2.ToString(\"defaultValue\")", "defaultValue")]
-
             public void Method_IsSuccessful_HasResult(string input, object expected)
             {
                 var tree = GetParser(input).begin_expression();
@@ -97,7 +96,7 @@ namespace KSharpParser.Tests
             public void Property_IsSuccessful_HasResult(string input, object expected)
             {
                 var tree = GetParser(input).begin_expression();
-                
+
                 Assert.IsNull(tree.exception);
                 Assert.AreEqual(expected, Visitor.GetFirstResult(tree));
             }
